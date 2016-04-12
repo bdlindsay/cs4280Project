@@ -1,14 +1,17 @@
 #Brett Lindsay Makefile
-# CS4280 Project 1
+# CS4280 Project
 all: ada 
 CC = gcc -g
 LEX = lex
 BISON = bison
 BFLAGS = -d -y #-v
-OBJS = parseDriver.o tree.o lex.yy.o y.tab.o
+OBJS = parseDriver.o tree.o lex.yy.o y.tab.o check.o
 
 ada : $(OBJS)
 	$(CC) -o $@ $^
+
+check.o : check.c ST.h
+	$(CC) -c check.c
 
 tree.o : tree.c tree.h
 	$(CC) -c tree.c
@@ -28,7 +31,7 @@ y.tab.c : parser.y
 y.tab.o : y.tab.c y.tab.h
 	$(CC) -c y.tab.c
 
-parseDriver.o : parseDriver.c 
+parseDriver.o : parseDriver.c ST.h 
 	$(CC) -c parseDriver.c
 
 clean :

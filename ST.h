@@ -2,16 +2,16 @@
 // Symbol Table Header file
 // cs4280 Part 3
 
-typedef enum bool {false, true};
+typedef enum {false, true} bool;
 
 typedef struct {
-	char *name;
+	int index; // need this?
 	int type;
+	char name[30]; 
 	int scope;
 	int upperAlimit;
 	int lowerAlimit;
 	int arrayBaseT;
-	int index; // need this?
 	bool valid;	// valid entry in ST right now? 
 } STEntry;
 
