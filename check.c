@@ -19,11 +19,27 @@ void type_error(int);
 
 void printST () {
 	int i;
+	char type[9] = "<none>  ";
 	printf("SYMBOL TABLE\n");
 	for (i = 0; i <= top; i++) {
 		int t = ST[i]->type;
-		printf ("%3d %-10s\t%s\n", i, id_name (i),
-			t == Integer ? "Integer" : t == Boolean ? "Boolean" : "<none>");
+		if (t == Boolean) {
+			strcpy (type, "Boolean");
+		} else if ( t == Integer) {
+			strcpy (type, "Integer");
+		} else if (t == Array && ST[i]->arrayBaseT == Integer) {
+			strcpy (type, "Array:Integers");
+		} else if (t == Array && ST[i]->arrayBaseT == Boolean) {
+			strcpy (type, "Array:Booleans");
+		} else {
+			strcpy (type, "<none>  ");
+		}
+		if (t != Array) {
+			printf ("%3d %-10s\t%s\n", i, id_name (i), type);
+		} else {
+			printf ("%3d %-10s\t%s\trange: %d..%d\n", 
+				i, id_name (i), type, ST[i]->aStart, ST[i]->aEnd); 
+		}
 	}
 }
 
@@ -113,7 +129,7 @@ static void handle_decls (tree t) {
 	for (; t != NULL; t = t->next) {
 		int type = t->second->kind; 
 		tree p;
-		if (type != Integer && type != Boolean) {
+		if (type != Integer && type != Boolean && type != Array) {
 			fprintf( stderr, "Bad type in decl\n"); 
 			continue;
 			//return;
@@ -126,6 +142,11 @@ static void handle_decls (tree t) {
 			char *tmp = id_name(p->value);
 			strcpy(ST[pos]->name, tmp);
 			ST[pos]->valid = true;	
+			if (type == Array) {
+				ST[pos]->aStart = t->second->first->first->value;
+				ST[pos]->aEnd = t->second->first->second->value;
+				ST[pos]->arrayBaseT = t->second->second->kind;
+			}
 		}
 	} // end for t = t->next
 

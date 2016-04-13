@@ -9,8 +9,8 @@ typedef struct {
 	int type;
 	char name[30]; 
 	int scope;
-	int upperAlimit;
-	int lowerAlimit;
+	int aStart;
+	int aEnd;
 	int arrayBaseT;
 	bool valid;	// valid entry in ST right now? 
 } STEntry;
