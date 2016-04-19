@@ -172,9 +172,7 @@ static void handle_decls (tree t) {
 		for (p = t->first; p != NULL; p = p->next) {
 			int pos = p->value;
 			static int test = 0;
-			if (pos == 2)
-				test++;
-			if (ST[pos]->valid == true || test == 2) { // don't overwrite existing
+			if (ST[pos]->valid == true || ST[pos] != NULL && scope > 1) { // don't overwrite existing
 				push (ST[pos]); // push possible prev scope entry to stack
 				ST[pos] = (STEntry *) malloc( sizeof( STEntry*)); // new entry here
 			}
@@ -187,9 +185,6 @@ static void handle_decls (tree t) {
 			if (type == Array) {
 				ST[pos]->aStart = t->second->first->first->value;
 				ST[pos]->aEnd = t->second->first->second->value;
-				if (t->second->second->kind != Integer) {
-					type_error(t->second->second->kind);
-				}
 				ST[pos]->arrayBaseT = t->second->second->kind;
 			}
 		}
@@ -338,6 +333,7 @@ void push (STEntry * entry) {
 void exitScope () {
 	for (; symStack[tos] != (STEntry*) -1; tos--) {
 		ST[symStack[tos]->index] = symStack[tos]; // pop value into ST		
+		fprintf (stderr, "Readded ident: %s : for reference in scope %d\n", ST[symStack[tos]->index]->name, scope-1);
 	}
 	tos--; // pop (STEntry*) -1	
 	scope--;
