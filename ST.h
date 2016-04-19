@@ -7,7 +7,7 @@ typedef enum {false, true} bool;
 typedef struct {
 	int index; // need this?
 	int type;
-	char name[30]; 
+	char *name; 
 	int scope;
 	int aStart;
 	int aEnd;
@@ -17,3 +17,9 @@ typedef struct {
 
 extern STEntry *ST[]; // the symbol table
 extern STEntry *symStack[]; // the stack for multiple scope support
+extern int tos;
+extern int scope;
+
+void enterScope ();
+void exitScope ();
+void push (STEntry*);
