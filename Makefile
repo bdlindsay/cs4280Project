@@ -5,10 +5,13 @@ CC = gcc -g
 LEX = lex
 BISON = bison
 BFLAGS = -d -y #-v
-OBJS = parseDriver.o tree.o lex.yy.o y.tab.o check.o
+OBJS = parseDriver.o tree.o lex.yy.o y.tab.o check.o instr.o code.o generate.o
 
 ada : $(OBJS)
 	$(CC) -o $@ $^
+
+generate.o : generate.c
+	$(CC) -c generate.c
 
 check.o : check.c ST.h
 	$(CC) -c check.c
@@ -33,6 +36,12 @@ y.tab.o : y.tab.c y.tab.h
 
 parseDriver.o : parseDriver.c ST.h 
 	$(CC) -c parseDriver.c
+
+instr.o : instr.c instr.h
+	$(CC) -c instr.c instr.h
+
+#code.o : code.c
+#	$(CC) -c code.c
 
 clean :
 	-@ rm -f lex.yy.c *.o scantest ada y.output *.h.gch y.tab.c

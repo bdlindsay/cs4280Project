@@ -24,19 +24,19 @@ static void gen_expr (tree t)
 			} else if (t->kind == Minus) {
 				code (SUBI);
 			} else if (t->kind == Star) {
-				code (MULTI);
+				code (MULI);
 			} else if (t->kind == Slash) {
 				code (DIVI);
 			}			
 			break;
 		
-		case Equals: case DivEq:
+		case Equal: case DivEq:
 		case Less: case LessEq:
 		case Greater: case GreaterEq:
 
 			gen_expr (t->first);
 			gen_expr (t->second);
-			if (t->kind == Equals) {
+			if (t->kind == Equal) {
 				code (SUBI);
 				code (TSTEQI);
 			} else if (t->kind == DivEq) {
@@ -62,21 +62,44 @@ static void gen_expr (tree t)
 			}	
 			break;
 		
-		case IntCost:
-			code1 (PUSHW, t->value);
+		case Or: case And: case Xor: case Not:
+			gen_expr (t->first);
+			gen_expr (t->second);
+			if (t->kind == Or) {
+				code (ORW);
+			} else if (t->kind == And) {
+				code (ANDW);	
+			} else if (t->kind == Xor) {
+				code (XORW);
+			} else if (t->kind == Not) {
+				code (NOTW);
+			}		
 			break;
 		
+		case IntConst: case True: case False: // should True & False be here?
+			code1 (PUSHW, t->value);
+			break;
+			
 		case Ident:	
-			code1 (PUSHW, addr_of (t));
+			code1 (RPUSHA, addr_of (t));
 			code (GETSW);
 			break;
 
+		case Array: // this or LBrac, check index w/ declared range
+			code1 (RPUSHA, addr_of (t->first)); 
+			gen_expr (t->second);
+			code1 (PUSHW, sizeof(IntConst)); // base type??
+			code (MULI);
+			code (ADDI);
+			code (GETSW);
+			break;
+				
 		default:
 			fprintf (stderr, "Internal error 12\n");	
 	}
 }		
 
-static void gen_stmt (tree t) 
+void gen_stmt (tree t) 
 {
 	for (; t != NULL; t = t->next) {
 		switch (t->kind) {
@@ -86,7 +109,7 @@ static void gen_stmt (tree t)
 
 			case Assign:
 				prLC();
-				code1 (PUSHW, addr_of (t->first));
+				code1 (RPUSHA, addr_of (t->first));
 				gen_stmt (t->second);
 				code (PUTSW);
 				prNL();
@@ -109,6 +132,43 @@ static void gen_stmt (tree t)
 				}	
 			}	
 			break;
+
+			case For: { // TODO handle Exit [when]
+				struct FR fix1, fix2, fix3; // fix 3 for exit?
+				prLC();
+				code1 (RPUSHA, addr_of (t->first));
+				gen_expr (t->second->first); // lower range
+				code (PUTSW); // is this correct?
+				gen_expr (t->second->second); // upper range
+
+				// first <= second
+				code1 (PUSHW, t->second->first->value); // needed?
+				code1 (PUSHW, t->second->second->value); // needed?
+				code (SWAPW);
+				code (SUBI);
+				code (TSTLTI);	
+				code (NOTW);
+				fix1 = codeFR(RGOZ); // if 0 (false), error  
+				
+				fix2 = codeFR (RGOTO); // return to test??
+				// Ident <= upper expr
+				code1 (PUSHW, t->first->value);
+				code1 (PUSHW, t->second->second->value);
+				code (SWAPW);
+				code (SUBI);
+				code (TSTLTI);	
+				code (NOTW);
+				fix3 = codeFR (RGOZ); // if 0 (false), loop done
+
+				gen_stmt (t->third);
+				code1 (PUSHW, 1); // push 1 to stack?
+				code1 (PUSHW, t->first->value); // push index val?
+				code (ADDI); // increment?
+				code1 (RGOTO, fix2.LChere); // how to do this??
+				fixFR (fix1, LC);
+				fixFR (fix3, LC);
+				break;
+			}
 		}
 	}
 
