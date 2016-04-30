@@ -70,7 +70,7 @@ statement
 	| For Ident In range Loop stmts End Loop
 		{ $$ = buildTree (For, buildIntTree (Ident, $2), $4, $6); }
 	| Exit
-		{ $$ = NULL; }
+		{ $$ = buildTree (Exit, NULL, NULL, NULL); }
 	| Exit When expr
 		{ $$ = buildTree (Exit, $3, NULL, NULL); }
 	| If expr Then stmts end_if

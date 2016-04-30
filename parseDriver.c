@@ -10,7 +10,7 @@ extern yynerrs;
 
 FILE *outfile;
 
-extern void gen_program (tree);
+//extern void gen_program (tree);
 
 main(int argc, char *argv[]) {
 	int i;
