@@ -33,6 +33,7 @@ decls
 		{ $$ = NULL; }
 	| declaration SemiColon decls
 		{ $1-> next = $3; $$ = $1; }
+	;
 declaration
 	: id_list Colon type
 		{ $$ = buildTree(Colon, $1, $3, NULL); /*$1->next = $3; $$ = $1;*/ }

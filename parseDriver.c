@@ -40,6 +40,6 @@ main(int argc, char *argv[]) {
 	}	
 	gen_program (root);
 
-	fclose (outfile);
+	//fclose (outfile);
 	fclose (yyin);
 }

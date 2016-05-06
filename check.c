@@ -182,6 +182,8 @@ static void handle_decls (tree t) {
 			char *tmp = id_name (p->value);
 			ST[pos]->name = tmp;
 			ST[pos]->valid = true;	
+			ST[pos]->typeSize = -1;
+			ST[pos]->addr = -1;
 			if (type == Array) {
 				ST[pos]->aStart = t->second->first->first->value;
 				ST[pos]->aEnd = t->second->first->second->value;
@@ -273,6 +275,8 @@ void check_stmts (tree t) {
 					char *tmp = id_name(pos);
 					ST[pos]->name = tmp;
 					ST[pos]->valid = true;	
+					ST[pos]->typeSize = -1;
+					ST[pos]->addr = -1;
 				}
 
 				check_stmts(t->third); // body of For loop

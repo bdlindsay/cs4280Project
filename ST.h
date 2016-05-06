@@ -5,8 +5,10 @@
 typedef enum {false, true} bool;
 
 typedef struct {
-	int index; // need this?
+	int index;
+	int addr;
 	int type;
+	int typeSize;
 	char *name; 
 	int scope;
 	int aStart;

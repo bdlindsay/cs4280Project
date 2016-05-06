@@ -1,13 +1,17 @@
 #include <stdio.h>
 #include "tree.h"
+#include "ST.h"
 #include "y.tab.h"
 #include "code.h"
 #include "instr.h"
 
-#define addr_of(t) (2 * (t->value -1))
+#define INT_BOOL_SIZE = 2;
+
 extern char tokName[][12]; // token names
-int dataLC = 0;
-int codeLC = 0; 
+int DC = 0;
+int LCHold = 0;
+STEntry *symStack[100];
+int tops = -1;
 
 static void gen_expr (tree t)
 {
@@ -32,7 +36,10 @@ static void gen_expr (tree t)
 			} else if (t->kind == Slash) {
 				code (DIVI);
 			} else if (t->kind == Mod) {
-				fprintf (stderr, "Found Mod - holding off\n");	
+				code (DUPL); // duplicate two moded nums on stack
+				code (DIVI); // mod operation
+				code (MULI);
+				code (SUBI);
 			}
 			break;
 		
@@ -84,15 +91,29 @@ static void gen_expr (tree t)
 		
 		case Range:
 			gen_expr (t->first);
-			code (PUTSW);
-			//gen_expr (t->second); // upper range
-			//code (DUPW);
 			break;
 					
 		case LBrac: //check index w/ declared range?
-			code1 (PUSHW, addr_of (t->first)); 
+			code1 (PUSHW, ST[t->first->value]->addr); 
 			gen_expr (t->second);
-			code1 (PUSHW, sizeof(IntConst)); // base type??
+
+			// test if reference in array lower bound
+			code (DUPW);
+			code1 (PUSHW, ST[t->first->value]->aStart); // lower array bound
+			code (SUBI);
+			code (TSTLTI);
+			code1 (RGOZ, 1); // what is the 1 actually??
+			code (HALT);
+			// test if reference in array upper bound
+			code (DUPW);
+			code1 (PUSHW, ST[t->first->value]->aEnd); // upper array bound
+			code (SWAPW);
+			code (SUBI);
+			code (TSTLTI);
+			code1 (RGOZ, 1); // what is the 1 actually??
+			code (HALT);	
+			 
+			code1 (PUSHW, sizeof(int)); // should be size of base type 
 			code (MULI);
 			code (ADDI);
 			code (GETSW);
@@ -107,13 +128,8 @@ static void gen_expr (tree t)
 			break;
 			
 		case Ident:	
-			code1 (PUSHW, addr_of (t)); 
+			code1 (PUSHW, ST[t->value]->addr);
 			code (GETSW);
-			// additional decls
-			if (t->next != NULL) {
-				prLC();
-				gen_expr (t->next);
-			}	
 			break;
 				
 		default:
@@ -126,20 +142,62 @@ void gen_stmt (tree t)
 {
 	for (; t != NULL; t = t->next) {
 		switch (t->kind) {
-			case Integer: case Boolean: case Array: // should Array be here too?
-				/* do nothing */
+			case Integer: case Boolean: case Array:
+				/*do nothing*/
 				break;
 
 			case Colon:
+				LCHold = LC;
+				LC = DC;
+
 				prLC();
-				gen_expr (t->first);
-				gen_stmt (t->second);
+				ST[t->first->value]->addr = LC;
+				int start, end;
+				if (t->second->kind == Integer) {
+					ST[t->first->value]->typeSize = 2;//size of array
+				} else if (t->second->kind == Boolean) {
+					ST[t->first->value]->typeSize = 2;//size of array
+				} else if (t->second->kind == Array) {
+					ST[t->first->value]->aEnd = t->second->first->second->value;
+					ST[t->first->value]->aStart = t->second->first->first->value;
+					end = ST[t->first->value]->aEnd;
+					start = ST[t->first->value]->aStart;
+					ST[t->first->value]->typeSize = (end-start+1)*2;//size of array
+					// arrays must be boolean or integer so hard code 2
+				}		
+				LC += ST[t->first->value]->typeSize;
+
+				tree tmp = t->first;
+				while ((tmp = tmp->next) != NULL) {// id_list
+					prLC();
+					ST[tmp->value]->addr = LC;
+					if (ST[tmp->value]->type == Integer) {
+						ST[tmp->value]->typeSize = 2;
+					} else if (ST[tmp->value]->type == Boolean) {
+						ST[tmp->value]->typeSize = 2;
+					} else if (ST[tmp->value]->type == Array) {
+						// needs to use range values for that id_list
+						// saved in old end, start
+						//end = ST[tmp->value]->aEnd;
+						//start = ST[tmp->value]->aStart;
+						ST[tmp->value]->typeSize = (end-start+1)*2;		
+					}
+					LC += ST[tmp->value]->typeSize;
+				}	
+				//gen_expr (t->first);
+				//gen_stmt (t->second); 
 				prNL();
+				DC = LC;
+				LC = LCHold;
 				break;
 
 			case Assign:
 				prLC();
-				code1 (PUSHW, addr_of (t->first));
+				if (t->first->kind == Ident) { // normal assignment
+					code1 (PUSHW, ST[t->first->value]->addr);
+				} else { // array ref assignment	
+					code1 (PUSHW, ST[t->first->first->value]->addr);
+				}
 				gen_expr (t->second);
 				code (PUTSW);
 				prNL();
@@ -173,31 +231,43 @@ void gen_stmt (tree t)
 
 			case For: { 
 				struct FR fix1, fix2; 
-				int place;
-				prLC();
-				code1 (PUSHW, addr_of (t->first)); 
-				gen_expr (t->second); // lower range
-				prNL();
+				int place, oldTypeSize;
+				bool isReDecl = false;
 
-				codeLC = LC;
-				LC = dataLC;
+				LCHold = LC;
+				LC = DC;
+
 				pr_directive(".DATA");
 				prLC();
-				gen_expr (t->first);
-				prNL();
+				ST[t->first->value]->addr = LC;
+				// For loop will always be integer
+				if (ST[t->first->value]->typeSize == -1) {
+					ST[t->first->value]->typeSize = 2;
+				} else {
+					oldTypeSize = ST[t->first->value]->typeSize;
+					ST[t->first->value]->typeSize = 2;
+					isReDecl = true;
+				}	
+				LC += 2;
 
-				dataLC = LC;
-				LC = codeLC;
-				pr_directive(".CODE");
+				DC = LC;
+				LC = LCHold;
+				prNL();
+					
+				pr_directive (".CODE");
+				/*gen_expr (t->second); // lower range not needed?
+				code (DUPW);
+				prNL();*/
+
 				prLC();
-				gen_expr (t->second->second); // 
+				gen_expr (t->second->second); // upper range 
 				code (DUPW);
 				prNL();
 				
 				// Ident == upper expr -> the test
 				place = LC;
 				prLC();
-				code1 (PUSHW, addr_of (t->first));
+				code1 (PUSHW, ST[t->first->value]->addr);
 				code (GETSW);
 				code (SUBI);
 				code (TSTEQI);
@@ -205,7 +275,7 @@ void gen_stmt (tree t)
 
 				gen_stmt (t->third); // check For loop body
 				// increment index Ident
-				code1 (PUSHW, addr_of (t->first)); // push index addr 
+				code1 (PUSHW, ST[t->first->value]->addr); // push index addr 
 				code (DUPW);
 				code (GETSW);
 				code1 (PUSHW, 1); 
@@ -223,14 +293,48 @@ void gen_stmt (tree t)
 				code1 (PUSHW, -1);
 				code (CHSPS);
 				prNL();
+
+				// fix possible redecl
+				if (isReDecl) {
+					ST[t->first->value]->typeSize = oldTypeSize;
+				}
 				break;
 			}
 		
 		case Declare: 
-			prLC();
-			gen_stmt (t->first); // send Colon for decls?
+			pr_directive (".DATA");
+			//prNL();
+			// save old sym table entries
+			if (ST[t->first->first->value]->addr != -1) {
+				tops++;
+				symStack[tops] = malloc (sizeof (STEntry*));	
+				symStack[tops]->addr = ST[t->first->first->value]->addr;
+				symStack[tops]->typeSize = ST[t->first->first->value]->typeSize;
+				symStack[tops]->index = ST[t->first->first->value]->index;
+				tree tmp = NULL;
+				if (t->first->first->next != NULL) {
+					tmp = t->first->first->next;
+				}
+				while (tmp != NULL) { // other decls in id_list 
+					if (ST[tmp->value] != NULL && ST[tmp->value]->addr != -1) {
+						tops++;
+						symStack[tops] = malloc (sizeof (STEntry*));	
+						symStack[tops]->addr = ST[t->value]->addr;
+						symStack[tops]->typeSize = ST[t->value]->typeSize;
+						symStack[tops]->index = ST[t->value]->index;
+					}	
+				}	
+			}
+			gen_stmt (t->first); // send Colon for decls
+			pr_directive (".CODE");
+			//prNL();
 			gen_stmt (t->second); // check stmts
 			prNL();
+			while (tops != -1) {
+				ST[symStack[tops]->index]->addr = symStack[tops]->addr;
+				ST[symStack[tops]->index]->typeSize = symStack[tops]->typeSize;
+				tops--;	
+			}	
 			break;
 
 		case Exit: { 
@@ -256,15 +360,15 @@ void gen_stmt (tree t)
 
 void gen_program (tree t)
 {
-	LC = dataLC;
+	LC = LCHold;
+	LC = DC;
 	pr_directive (".DATA");
 	gen_stmt (t->second); // decls
-	dataLC = LC;
 
-	LC = codeLC; // is this how you do this?
+	LC = LCHold;
 	pr_directive (".CODE");
 	gen_stmt (t->third); // body
-	codeLC = LC;
+	LCHold = LC;
 
 	prLC();
 	code (HALT);
